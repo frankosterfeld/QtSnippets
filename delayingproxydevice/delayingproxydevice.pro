@@ -1,4 +1,3 @@
-
 TARGET=testdelayingproxydevice
 
 CONFIG += qtestlib console testcase
