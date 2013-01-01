@@ -46,16 +46,18 @@ public:
         return bytesAvailable == sourceDevice->bytesAvailable();
     }
     qint64 calcChunkSize() const;
+    void makeChunkAvailableImpl();
 };
 
 qint64 DelayingProxyDevice::Private::calcChunkSize() const {
     Q_ASSERT( chunkSize > 0 );
-    Q_ASSERT( chunkSize >= randomizationDelta );
+    Q_ASSERT( chunkSize > randomizationDelta );
     if ( randomizationDelta > 0 ) {
         const qint64 delta = rand() % ( 2 * randomizationDelta + 1 ) - randomizationDelta;
         return qMax( static_cast<qint64>( 1 ), chunkSize + delta );
-    } else
+    } else {
         return chunkSize;
+    }
 }
 
 DelayingProxyDevice::DelayingProxyDevice( const QByteArray& data, QObject* parent )
@@ -123,23 +125,22 @@ qint64 DelayingProxyDevice::writeData( const char* data, qint64 len )
     return written;
 }
 
+void DelayingProxyDevice::Private::makeChunkAvailableImpl() {
+    const qint64 siz = calcChunkSize();
+    Q_ASSERT( siz > 0 );
+    bytesAvailable = qMin( bytesAvailable + siz, sourceDevice->bytesAvailable() );
+}
+
 void DelayingProxyDevice::makeChunkAvailable() {
-    const bool wasAvailable = d->bytesAvailable > 0;
-    const qint64 siz = d->calcChunkSize();
-    if ( siz < 0 )
-        d->bytesAvailable = d->sourceDevice->bytesAvailable();
-    else
-        d->bytesAvailable += siz;
-    if ( !wasAvailable ) {
-        readyRead();
-    }
+    d->makeChunkAvailableImpl();
+    emit readyRead();
 }
 
 bool DelayingProxyDevice::open( OpenMode m ) {
     Q_ASSERT( d->sourceDevice );
     setOpenMode( m );
     if ( d->sourceDevice->bytesAvailable() > 0 || !d->sourceDevice->isSequential() )
-        makeChunkAvailable();
+       d->makeAvailableTimer.start();
     return true;
 }
 
@@ -186,10 +187,15 @@ bool DelayingProxyDevice::reset() {
 bool DelayingProxyDevice::waitForReadyRead( int msecs ) {
     if ( d->bytesAvailable > 0 )
         return true;
-    if ( d->allAvailable() )
-        d->sourceDevice->waitForReadyRead( msecs );
-    makeChunkAvailable();
-    return d->bytesAvailable > 0;
+    if ( !d->allAvailable() ) {
+        d->makeChunkAvailableImpl();
+        return true;
+    } else {
+        const bool ready = d->sourceDevice->waitForReadyRead( msecs );
+        if ( ready )
+            d->makeChunkAvailableImpl();
+        return ready;
+    }
 }
 
 bool DelayingProxyDevice::waitForBytesWritten( int msecs ) {

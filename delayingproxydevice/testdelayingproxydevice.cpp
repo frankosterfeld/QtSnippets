@@ -57,31 +57,6 @@ private Q_SLOTS:
         QCOMPARE( reader.receivedData(), emptyData );
     }
 
-    void testFile() {
-        const QString fname = QLatin1String(":/bildblog.xml");
-        QFile f( fname );
-        const bool fopened = f.open( QIODevice::ReadOnly );
-        QVERIFY( fopened );
-
-        DelayingProxyDevice dev( &f );
-        dev.setMediumChunkSize( 5 );
-        dev.setRandomizationDelta( 3 );
-
-        const bool opened = dev.open( QIODevice::ReadOnly );
-        QVERIFY( opened );
-
-        TestReader reader;
-        reader.setDevice( &dev );
-        QEventLoop loop;
-        QObject::connect( &reader, SIGNAL(finished()), &loop, SLOT(quit()) );
-        loop.exec();
-        QFile f2( fname );
-        const bool fopened2 = f2.open( QIODevice::ReadOnly );
-        QVERIFY( fopened2 );
-        const QByteArray expected = f2.readAll();
-        QCOMPARE( reader.receivedData(), expected );
-    }
-
     void testByteArray()
     {
         for ( int i = 0; i < 20; ++i ) {
@@ -100,6 +75,29 @@ private Q_SLOTS:
             loop.exec();
             QCOMPARE( reader.receivedData(), testData );
         }
+    }
+
+    void testFile() {
+        const QString fname = QLatin1String(":/bildblog.xml");
+        QFile f( fname );
+        const bool fopened = f.open( QIODevice::ReadOnly );
+        QVERIFY( fopened );
+
+        DelayingProxyDevice dev( &f );
+        dev.setMediumChunkSize( 5 );
+        dev.setRandomizationDelta( 3 );
+        QVERIFY( dev.open( QIODevice::ReadOnly ) );
+
+        TestReader reader;
+        reader.setDevice( &dev );
+        QEventLoop loop;
+        QObject::connect( &reader, SIGNAL(finished()), &loop, SLOT(quit()) );
+        loop.exec();
+        QFile f2( fname );
+        const bool fopened2 = f2.open( QIODevice::ReadOnly );
+        QVERIFY( fopened2 );
+        const QByteArray expected = f2.readAll();
+        QCOMPARE( reader.receivedData(), expected );
     }
 
     void testXmlStreamReader() {
