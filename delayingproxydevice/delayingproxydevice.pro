@@ -1,8 +1,9 @@
 TARGET=testdelayingproxydevice
 
-CONFIG += qtestlib console testcase
+CONFIG += console testcase
 QT -= gui
-QT += core xml
+QT += core xml testlib
+
 macx:CONFIG -= app_bundle
 
 HEADERS += delayingproxydevice.h testreader.h
